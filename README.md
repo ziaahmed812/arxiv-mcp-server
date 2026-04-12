@@ -104,21 +104,19 @@ After this, the `arxiv-mcp-server` command will be available on your `PATH`.
 
 ### Installing This Fork
 
-If you want the fork-specific bundle layout and retained sidecar artifacts from this repository, install it from source instead of PyPI:
+If you want the fork-specific bundle layout and retained sidecar artifacts from this repository, install the fork itself instead of the upstream PyPI package:
 
 ```bash
-git clone https://github.com/ziaahmed812/arxiv-mcp-server.git
-cd arxiv-mcp-server
-uv tool install .
+uv tool install 'git+https://github.com/ziaahmed812/arxiv-mcp-server.git'
 ```
 
 If you also want PDF fallback for older papers in the forked build, install:
 
 ```bash
-uv tool install '.[pdf]'
+uv tool install 'git+https://github.com/ziaahmed812/arxiv-mcp-server.git' --with pymupdf4llm --with pymupdf-layout
 ```
 
-With the fork installed, `download_paper` stores each paper in a versioned bundle directory like:
+With the fork installed, `download_paper` uses a simple bundle-only layout:
 
 ```text
 /your/storage/root/2603.23432v1/
@@ -133,7 +131,7 @@ With the fork installed, `download_paper` stores each paper in a versioned bundl
 >
 > ```bash
 > uv tool install 'arxiv-mcp-server[pdf]'  # upstream PyPI package
-> uv tool install '.[pdf]'                 # this fork from source
+> uv tool install 'git+https://github.com/ziaahmed812/arxiv-mcp-server.git' --with pymupdf4llm --with pymupdf-layout  # this fork
 > ```
 You can verify it with:
 
@@ -410,7 +408,7 @@ This public fork of `blazickjp/arxiv-mcp-server` adds:
 - retained `paper.md`, `paper.pdf`, and `source.tar.gz` artifacts for every downloaded paper
 - working storage-root configuration through both `--storage-path` and `ARXIV_STORAGE_PATH`
 - bare-ID local reads that resolve to the highest downloaded version
-- legacy flat-file archiving into `older-files/` so existing storage roots can be upgraded safely
+- a simple bundle-only storage model where stray top-level flat files are ignored
 
 ---
 
