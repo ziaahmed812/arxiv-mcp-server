@@ -17,7 +17,7 @@ import mcp.types as types
 from mcp.types import ToolAnnotations
 
 from ..config import get_arxiv_client
-from ..paper_store import ensure_storage_layout_prepared, get_bundle_paths, has_content
+from ..paper_store import get_bundle_paths, has_content
 
 # Optional PDF-conversion dependencies — only needed when the markdown must be
 # generated from the PDF fallback path.
@@ -316,8 +316,6 @@ async def handle_download(arguments: Dict[str, Any]) -> List[types.TextContent]:
     requested_paper_id = arguments["paper_id"]
 
     try:
-        ensure_storage_layout_prepared()
-
         paper = await asyncio.to_thread(_fetch_paper_result, requested_paper_id)
         paper_id = paper.get_short_id()
         paths = get_bundle_paths(paper_id)

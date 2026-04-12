@@ -2,26 +2,18 @@
 
 from __future__ import annotations
 
-import logging
 import re
-import shutil
-import threading
 from pathlib import Path
 from typing import Iterator, Optional
 
 from .config import Settings
 
-logger = logging.getLogger("arxiv-mcp-server")
 settings = Settings()
 
 MARKDOWN_FILENAME = "paper.md"
 PDF_FILENAME = "paper.pdf"
 SOURCE_FILENAME = "source.tar.gz"
-OLDER_FILES_DIRNAME = "older-files"
-
-_LEGACY_SUFFIXES = (".tar.gz", ".pdf", ".md")
 _SLASH_TOKEN = "__slash__"
-_LAYOUT_LOCK = threading.Lock()
 
 _ARXIV_ID_RE = re.compile(
     r"^(\d{4}\.\d{4,5}(v\d+)?|[a-z\-]+(/[a-z\-]+)?/\d{7}(v\d+)?)$",
@@ -32,13 +24,6 @@ _ARXIV_ID_RE = re.compile(
 def storage_path() -> Path:
     """Return the configured storage path, ensuring it exists."""
     path = Path(settings.STORAGE_PATH)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def older_files_path() -> Path:
-    """Return the archive directory for older flat-file downloads."""
-    path = storage_path() / OLDER_FILES_DIRNAME
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -85,32 +70,12 @@ def has_content(path: Path) -> bool:
         return False
 
 
-def ensure_storage_layout_prepared() -> None:
-    """Archive legacy root-level arXiv artifact files into older-files/."""
-    with _LAYOUT_LOCK:
-        root = storage_path()
-        archive_dir = older_files_path()
-
-        for item in sorted(root.iterdir(), key=lambda path: path.name):
-            if not item.is_file():
-                continue
-
-            legacy_paper_id = _legacy_paper_id_from_name(item.name)
-            if legacy_paper_id is None:
-                continue
-
-            destination = _next_archive_path(archive_dir / item.name)
-            shutil.move(str(item), str(destination))
-            logger.info("Archived legacy flat paper file %s -> %s", item, destination)
-
-
 def iter_active_bundles() -> Iterator[tuple[str, Path]]:
     """Yield active paper bundles that contain a stored markdown file."""
-    ensure_storage_layout_prepared()
     root = storage_path()
 
     for item in sorted(root.iterdir(), key=lambda path: path.name):
-        if not item.is_dir() or item.name == OLDER_FILES_DIRNAME:
+        if not item.is_dir():
             continue
 
         paper_id = bundle_name_to_paper_id(item.name)
@@ -128,8 +93,6 @@ def list_active_paper_ids() -> list[str]:
 
 def resolve_local_paper_id(requested_paper_id: str) -> Optional[str]:
     """Resolve a local paper ID, preferring the highest bundled version."""
-    ensure_storage_layout_prepared()
-
     if not is_valid_arxiv_id(requested_paper_id):
         return None
 
@@ -155,29 +118,3 @@ def resolve_local_paper_id(requested_paper_id: str) -> Optional[str]:
             best_version = numeric_version
 
     return best_match
-
-
-def _legacy_paper_id_from_name(filename: str) -> Optional[str]:
-    """Return the paper ID for a legacy flat artifact filename, if any."""
-    for suffix in _LEGACY_SUFFIXES:
-        if not filename.endswith(suffix):
-            continue
-
-        paper_id = filename[: -len(suffix)]
-        if is_valid_arxiv_id(paper_id):
-            return paper_id
-
-    return None
-
-
-def _next_archive_path(path: Path) -> Path:
-    """Return a collision-free archive path."""
-    if not path.exists():
-        return path
-
-    counter = 1
-    while True:
-        candidate = path.with_name(f"{path.name}.{counter}")
-        if not candidate.exists():
-            return candidate
-        counter += 1

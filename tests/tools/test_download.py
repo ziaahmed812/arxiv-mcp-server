@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import arxiv
 import pytest
 
-from arxiv_mcp_server.paper_store import get_bundle_paths, older_files_path
+from arxiv_mcp_server.paper_store import get_bundle_paths
 from arxiv_mcp_server.tools import download as download_module
 from arxiv_mcp_server.tools.download import (
     ArtifactDownloadError,
@@ -201,10 +201,8 @@ async def test_partial_success_returns_warning_when_source_download_fails(
 
 
 @pytest.mark.asyncio
-async def test_legacy_flat_files_are_archived_before_download(
-    download_test_env, mocker, mock_paper
-):
-    """Legacy flat files should be moved into older-files without touching folders."""
+async def test_top_level_flat_files_are_ignored(download_test_env, mocker, mock_paper):
+    """Stray top-level flat files should be ignored, not moved or treated as active."""
     legacy_file = download_test_env / "1999.12345v1.md"
     legacy_file.write_text("old flat content", encoding="utf-8")
     dated_folder = download_test_env / "2026-04-12"
@@ -226,9 +224,7 @@ async def test_legacy_flat_files_are_archived_before_download(
 
     await handle_download({"paper_id": "2103.12345"})
 
-    archived_file = older_files_path() / legacy_file.name
-    assert not legacy_file.exists()
-    assert archived_file.exists()
+    assert legacy_file.exists()
     assert (dated_folder / "notes.md").exists()
 
 

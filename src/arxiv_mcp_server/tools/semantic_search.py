@@ -14,7 +14,7 @@ import arxiv
 import mcp.types as types
 
 from ..config import Settings
-from ..paper_store import ensure_storage_layout_prepared, list_active_paper_ids
+from ..paper_store import list_active_paper_ids
 
 try:
     import numpy as np
@@ -323,7 +323,6 @@ def rebuild_index(clear_existing: bool = True) -> Dict[str, Any]:
     if dependency_error:
         return {"status": "error", "message": dependency_error}
 
-    ensure_storage_layout_prepared()
     paper_ids = sorted(list_active_paper_ids())
 
     if clear_existing:

@@ -6,11 +6,7 @@ from typing import Any, Dict, List, Optional
 import mcp.types as types
 from mcp.types import ToolAnnotations
 
-from ..paper_store import (
-    ensure_storage_layout_prepared,
-    is_valid_arxiv_id as _is_valid_arxiv_id,
-    list_active_paper_ids,
-)
+from ..paper_store import is_valid_arxiv_id as _is_valid_arxiv_id, list_active_paper_ids
 
 
 def is_valid_arxiv_id(stem: str) -> bool:
@@ -37,7 +33,6 @@ list_tool = types.Tool(
 
 def list_papers() -> list[str]:
     """List all active bundle-backed paper IDs."""
-    ensure_storage_layout_prepared()
     return list_active_paper_ids()
 
 

@@ -12,7 +12,6 @@ from pydantic import AnyUrl
 
 from ..config import Settings
 from ..paper_store import (
-    ensure_storage_layout_prepared,
     get_bundle_paths,
     list_active_paper_ids,
     resolve_local_paper_id,
@@ -30,7 +29,6 @@ class PaperManager:
         settings = Settings()
         self.storage_path = Path(settings.STORAGE_PATH)
         self.storage_path.mkdir(parents=True, exist_ok=True)
-        ensure_storage_layout_prepared()
         self.client = arxiv.Client()
 
     def _get_paper_path(self, paper_id: str) -> Path:

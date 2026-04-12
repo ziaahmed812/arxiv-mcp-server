@@ -4,20 +4,19 @@ import json
 
 import pytest
 
-from arxiv_mcp_server.paper_store import get_bundle_paths, older_files_path
+from arxiv_mcp_server.paper_store import get_bundle_paths
 from arxiv_mcp_server.tools.list_papers import handle_list_papers
 from arxiv_mcp_server.tools.read_paper import handle_read_paper
 
 
 @pytest.mark.asyncio
 async def test_list_papers_only_returns_active_bundles(temp_storage_args):
-    """list_papers should ignore archives and unrelated folders."""
+    """list_papers should ignore flat files and unrelated folders."""
     bundle_paths = get_bundle_paths("2501.00001v2")
     bundle_paths["bundle_dir"].mkdir(parents=True, exist_ok=True)
     bundle_paths["markdown"].write_text("paper body", encoding="utf-8")
 
-    archive_dir = older_files_path()
-    (archive_dir / "2401.00001v1.md").write_text("old paper", encoding="utf-8")
+    (temp_storage_args / "2401.00001v1.md").write_text("old paper", encoding="utf-8")
     dated_folder = temp_storage_args / "2026-04-12"
     dated_folder.mkdir(parents=True, exist_ok=True)
     (dated_folder / "README.md").write_text("reading pack", encoding="utf-8")

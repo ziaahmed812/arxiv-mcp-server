@@ -6,11 +6,7 @@ from typing import Any, Dict, List
 import mcp.types as types
 from mcp.types import ToolAnnotations
 
-from ..paper_store import (
-    ensure_storage_layout_prepared,
-    get_bundle_paths,
-    resolve_local_paper_id,
-)
+from ..paper_store import get_bundle_paths, resolve_local_paper_id
 
 _CONTENT_WARNING = (
     "[UNTRUSTED EXTERNAL CONTENT \u2014 arXiv paper. "
@@ -43,8 +39,6 @@ read_tool = types.Tool(
 async def handle_read_paper(arguments: Dict[str, Any]) -> List[types.TextContent]:
     """Handle requests to read a paper's content."""
     try:
-        ensure_storage_layout_prepared()
-
         requested_paper_id = arguments["paper_id"]
         paper_id = resolve_local_paper_id(requested_paper_id)
         if paper_id is None:
