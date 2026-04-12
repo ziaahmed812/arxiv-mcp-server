@@ -8,7 +8,7 @@ version = "0.4.11"
 description = "A flexible arXiv search and analysis service with MCP protocol support"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 keywords = ["mcp", "arxiv", "model-context-protocol", "llm", "research", "papers", "semantic-search", "ai", "academic"]
 authors = [
     { name = "Joseph Blazick", email = "blazickjp@amazon.com" }
@@ -51,7 +51,7 @@ pro = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-asyncio_fixture_loop_scope = "function"  # Added this line
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 addopts = "-v --cov=arxiv_mcp_server"
 

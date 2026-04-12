@@ -1,14 +1,23 @@
 """Resource management and storage for arXiv papers."""
 
+import json
+import logging
 from pathlib import Path
 from typing import List
-import arxiv
-import pymupdf4llm
+
 import aiofiles
-import logging
-from pydantic import AnyUrl
+import arxiv
 import mcp.types as types
+from pydantic import AnyUrl
+
 from ..config import Settings
+from ..paper_store import (
+    ensure_storage_layout_prepared,
+    get_bundle_paths,
+    list_active_paper_ids,
+    resolve_local_paper_id,
+)
+from ..tools.download import handle_download
 
 logger = logging.getLogger("arxiv-mcp-server")
 
@@ -21,50 +30,33 @@ class PaperManager:
         settings = Settings()
         self.storage_path = Path(settings.STORAGE_PATH)
         self.storage_path.mkdir(parents=True, exist_ok=True)
+        ensure_storage_layout_prepared()
         self.client = arxiv.Client()
 
     def _get_paper_path(self, paper_id: str) -> Path:
-        """Get the absolute file path for a paper."""
-        return self.storage_path / f"{paper_id}.md"
+        """Get the markdown path for a stored paper bundle."""
+        return get_bundle_paths(paper_id)["markdown"]
 
     async def store_paper(self, paper_id: str, pdf_url: str) -> bool:
-        """Download and store a paper from arXiv."""
-        paper_md_path = self._get_paper_path(paper_id)
-        paper_pdf_path = paper_md_path.with_suffix(".pdf")
+        """Download and store a paper bundle from arXiv."""
+        del pdf_url  # Canonical metadata lookup happens inside download_paper.
 
-        if paper_md_path.exists():
+        response = await handle_download({"paper_id": paper_id})
+        payload = json.loads(response[0].text)
+        if payload.get("status") == "success":
             return True
 
-        try:
-            paper = next(self.client.results(arxiv.Search(id_list=[paper_id])))
-            paper.download_pdf(dirpath=self.storage_path, filename=paper_pdf_path)
-            markdown = pymupdf4llm.to_markdown(paper_pdf_path, show_progress=False)
-
-            async with aiofiles.open(paper_md_path, "w", encoding="utf-8") as f:
-                await f.write(markdown)
-
-            return True
-
-        except StopIteration:
-            raise ValueError(f"Paper with ID {paper_id} not found on arXiv.")
-        except arxiv.ArxivError as e:
-            raise ValueError(
-                f"Error: Failed to download paper {paper_id} from arXiv. Details: {str(e)}"
-            )
-        except Exception as e:
-            raise ValueError(
-                f"Error: An unexpected error occurred while storing paper {paper_id}. Details: {str(e)}"
-            )
+        raise ValueError(payload.get("message", f"Failed to store paper {paper_id}."))
 
     async def has_paper(self, paper_id: str) -> bool:
-        """Check if a paper is available in storage."""
-        return self._get_paper_path(paper_id).exists()
+        """Check if a paper bundle is available in storage."""
+        return resolve_local_paper_id(paper_id) is not None
 
     async def list_papers(self) -> list[str]:
         """List all stored paper IDs."""
-        logger.info(f"Listing papers in {self.storage_path}")
-        paper_ids = [p.stem for p in self.storage_path.glob("*.md")]
-        logger.info(f"Found {len(paper_ids)} papers")
+        logger.info("Listing papers in %s", self.storage_path)
+        paper_ids = list_active_paper_ids()
+        logger.info("Found %s papers", len(paper_ids))
         return paper_ids
 
     async def list_resources(self) -> List[types.Resource]:
@@ -75,10 +67,10 @@ class PaperManager:
         for paper_id in paper_ids:
             search = arxiv.Search(id_list=[paper_id])
             papers = list(self.client.results(search))
+            paper_path = self._get_paper_path(paper_id)
 
             if papers:
                 paper = papers[0]
-                paper_path = self._get_paper_path(paper_id)
                 resources.append(
                     types.Resource(
                         uri=AnyUrl(f"file://{str(paper_path)}"),
@@ -87,13 +79,26 @@ class PaperManager:
                         mimeType="text/markdown",
                     )
                 )
+            else:
+                resources.append(
+                    types.Resource(
+                        uri=AnyUrl(f"file://{str(paper_path)}"),
+                        name=paper_id,
+                        description="Downloaded arXiv paper",
+                        mimeType="text/markdown",
+                    )
+                )
 
-        logger.info(f"Found {len(resources)} resources")
+        logger.info("Found %s resources", len(resources))
         return resources
 
     async def get_paper_content(self, paper_id: str) -> str:
         """Get the markdown content of a stored paper."""
-        paper_path = self._get_paper_path(paper_id)
+        resolved_paper_id = resolve_local_paper_id(paper_id)
+        if resolved_paper_id is None:
+            raise ValueError(f"Paper {paper_id} not found in storage")
+
+        paper_path = self._get_paper_path(resolved_paper_id)
         if not paper_path.exists():
             raise ValueError(f"Paper {paper_id} not found in storage")
 

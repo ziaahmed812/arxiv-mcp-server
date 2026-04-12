@@ -1,11 +1,13 @@
 """Shared test fixtures for the arXiv MCP server test suite."""
 
-import pytest
+import sys
 import tempfile
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, AsyncMock
-import arxiv
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import arxiv
+import pytest
 
 
 class MockAuthor:
@@ -22,17 +24,19 @@ class MockLink:
 def mock_paper():
     """Create a properly structured mock paper with all required attributes."""
     paper = MagicMock(spec=arxiv.Result)
-    paper.get_short_id.return_value = "2103.12345"
+    paper.get_short_id.return_value = "2103.12345v1"
+    paper.entry_id = "https://arxiv.org/abs/2103.12345v1"
     paper.title = "Test Paper"
     paper.authors = [MockAuthor("John Doe"), MockAuthor("Jane Smith")]
     paper.summary = "Test abstract"
     paper.categories = ["cs.AI", "cs.LG"]
     paper.published = datetime(2023, 1, 1, tzinfo=timezone.utc)
-    paper.pdf_url = "https://arxiv.org/pdf/2103.12345"
+    paper.pdf_url = "https://arxiv.org/pdf/2103.12345v1"
+    paper.source_url.return_value = "https://arxiv.org/src/2103.12345v1"
     paper.comment = "Test comment"
     paper.journal_ref = "Test Journal 2023"
     paper.primary_category = "cs.AI"
-    paper.links = [MockLink("https://arxiv.org/abs/2103.12345")]
+    paper.links = [MockLink("https://arxiv.org/abs/2103.12345v1")]
     return paper
 
 
@@ -49,6 +53,16 @@ def temp_storage_path():
     """Create a temporary directory for paper storage during tests."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
+
+
+@pytest.fixture
+def temp_storage_args(monkeypatch, temp_storage_path):
+    """Point all Settings()-based storage lookups at a temporary directory."""
+    monkeypatch.setattr(
+        sys, "argv", ["pytest", "--storage-path", str(temp_storage_path)]
+    )
+    monkeypatch.delenv("ARXIV_STORAGE_PATH", raising=False)
+    return temp_storage_path
 
 
 @pytest.fixture

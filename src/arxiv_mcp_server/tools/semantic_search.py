@@ -14,7 +14,7 @@ import arxiv
 import mcp.types as types
 
 from ..config import Settings
-from .list_papers import is_valid_arxiv_id
+from ..paper_store import ensure_storage_layout_prepared, list_active_paper_ids
 
 try:
     import numpy as np
@@ -137,7 +137,7 @@ def _get_model() -> Any:
     global _model
     if _model is None:
         logger.info("Loading semantic embedding model %s", EMBEDDING_MODEL_NAME)
-        _model = SentenceTransformer(EMBEDDING_MODEL_NAME, silent=True)
+        _model = SentenceTransformer(EMBEDDING_MODEL_NAME)
     return _model
 
 
@@ -323,11 +323,8 @@ def rebuild_index(clear_existing: bool = True) -> Dict[str, Any]:
     if dependency_error:
         return {"status": "error", "message": dependency_error}
 
-    paper_ids = sorted(
-        p.stem
-        for p in Path(settings.STORAGE_PATH).glob("*.md")
-        if is_valid_arxiv_id(p.stem)
-    )
+    ensure_storage_layout_prepared()
+    paper_ids = sorted(list_active_paper_ids())
 
     if clear_existing:
         with _connect() as conn:

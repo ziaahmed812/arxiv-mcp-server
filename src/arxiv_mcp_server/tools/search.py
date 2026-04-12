@@ -199,10 +199,8 @@ def _parse_arxiv_atom_response(xml_text: str) -> List[Dict[str, Any]]:
             if id_elem is None or id_elem.text is None:
                 continue
 
-            # ID format: http://arxiv.org/abs/XXXX.XXXXX or http://arxiv.org/abs/category/XXXXXXX
+            # ID format: http://arxiv.org/abs/XXXX.XXXXXvN or http://arxiv.org/abs/category/XXXXXXXvN
             paper_id = id_elem.text.split("/abs/")[-1]
-            # Remove version suffix for short ID
-            short_id = paper_id.split("v")[0] if "v" in paper_id else paper_id
 
             # Title
             title_elem = entry.find("atom:title", ARXIV_NS)
@@ -257,14 +255,14 @@ def _parse_arxiv_atom_response(xml_text: str) -> List[Dict[str, Any]]:
 
             results.append(
                 {
-                    "id": short_id,
+                    "id": paper_id,
                     "title": title,
                     "authors": authors,
                     "abstract": abstract,
                     "categories": categories,
                     "published": published,
                     "url": pdf_url,
-                    "resource_uri": f"arxiv://{short_id}",
+                    "resource_uri": f"arxiv://{paper_id}",
                 }
             )
 
@@ -418,15 +416,22 @@ def _optimize_query(query: str) -> str:
 
 def _process_paper(paper: arxiv.Result) -> Dict[str, Any]:
     """Process paper information with resource URI."""
+    paper_id = paper.get_short_id()
+    entry_id = getattr(paper, "entry_id", "") or ""
+    if "/abs/" in entry_id:
+        paper_id = entry_id.split("/abs/")[-1]
+    elif getattr(paper, "pdf_url", "") and "/pdf/" in paper.pdf_url:
+        paper_id = paper.pdf_url.split("/pdf/")[-1].removesuffix(".pdf")
+
     return {
-        "id": paper.get_short_id(),
+        "id": paper_id,
         "title": paper.title,
         "authors": [author.name for author in paper.authors],
         "abstract": "[EXTERNAL CONTENT] " + paper.summary,
         "categories": paper.categories,
         "published": paper.published.isoformat(),
         "url": paper.pdf_url,
-        "resource_uri": f"arxiv://{paper.get_short_id()}",
+        "resource_uri": f"arxiv://{paper_id}",
     }
 
 

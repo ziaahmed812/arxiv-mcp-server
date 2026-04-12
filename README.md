@@ -1,10 +1,10 @@
 [![PyPI Version](https://img.shields.io/pypi/v/arxiv-mcp-server.svg)](https://pypi.org/project/arxiv-mcp-server/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/arxiv-mcp-server.svg)](https://pypi.org/project/arxiv-mcp-server/)
-[![GitHub Stars](https://img.shields.io/github/stars/blazickjp/arxiv-mcp-server?style=flat)](https://github.com/blazickjp/arxiv-mcp-server/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/blazickjp/arxiv-mcp-server?style=flat)](https://github.com/blazickjp/arxiv-mcp-server/forks)
-[![Tests](https://github.com/blazickjp/arxiv-mcp-server/actions/workflows/tests.yml/badge.svg)](https://github.com/blazickjp/arxiv-mcp-server/actions/workflows/tests.yml)
+[![GitHub Stars](https://img.shields.io/github/stars/ziaahmed812/arxiv-mcp-server?style=flat)](https://github.com/ziaahmed812/arxiv-mcp-server/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/ziaahmed812/arxiv-mcp-server?style=flat)](https://github.com/ziaahmed812/arxiv-mcp-server/forks)
+[![Tests](https://github.com/ziaahmed812/arxiv-mcp-server/actions/workflows/tests.yml/badge.svg)](https://github.com/ziaahmed812/arxiv-mcp-server/actions/workflows/tests.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![smithery badge](https://smithery.ai/badge/arxiv-mcp-server)](https://smithery.ai/server/arxiv-mcp-server)
 [![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=arxiv-mcp-server&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22arxiv-mcp-server%22%5D%7D)
 [![Install in VS Code Insiders](https://img.shields.io/badge/Install_in-VS_Code_Insiders-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=arxiv-mcp-server&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22arxiv-mcp-server%22%5D%7D&quality=insiders)
@@ -16,13 +16,15 @@
 <!-- mcp-name: io.github.blazickjp/arxiv-mcp-server -->
 
 > 🔍 Enable AI assistants to search and access arXiv papers through a simple MCP interface.
+>
+> This repository is a public fork of [blazickjp/arxiv-mcp-server](https://github.com/blazickjp/arxiv-mcp-server). It keeps upstream MCP functionality and adds bundle-backed paper storage, retained PDF/source artifacts, canonical versioned paper folders, and working configurable storage roots.
 
 The ArXiv MCP Server provides a bridge between AI assistants and arXiv's research repository through the Model Context Protocol (MCP). It allows AI models to search for papers and access their content in a programmatic way.
 
 <div align="center">
   
-🤝 **[Contribute](https://github.com/blazickjp/arxiv-mcp-server/blob/main/CONTRIBUTING.md)** • 
-📝 **[Report Bug](https://github.com/blazickjp/arxiv-mcp-server/issues)**
+🤝 **[Contribute](https://github.com/ziaahmed812/arxiv-mcp-server/blob/main/CONTRIBUTING.md)** •
+📝 **[Report Bug](https://github.com/ziaahmed812/arxiv-mcp-server/issues)**
 
 <a href="https://www.pulsemcp.com/servers/blazickjp-arxiv-mcp-server"><img src="https://www.pulsemcp.com/badge/top-pick/blazickjp-arxiv-mcp-server" width="400" alt="Pulse MCP Badge"></a>
 </div>
@@ -77,6 +79,8 @@ Agentic AI framework as **AG01: Prompt Injection in LLM-Integrated Systems**.
 
 ### Installing via Smithery
 
+Smithery and the upstream PyPI package currently point at the upstream project, not this fork. Use the source-install instructions below if you want the fork-specific storage improvements.
+
 To install ArXiv Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/arxiv-mcp-server):
 
 ```bash
@@ -98,12 +102,38 @@ uv tool install arxiv-mcp-server
 
 After this, the `arxiv-mcp-server` command will be available on your `PATH`.
 
+### Installing This Fork
+
+If you want the fork-specific bundle layout and retained sidecar artifacts from this repository, install it from source instead of PyPI:
+
+```bash
+git clone https://github.com/ziaahmed812/arxiv-mcp-server.git
+cd arxiv-mcp-server
+uv tool install .
+```
+
+If you also want PDF fallback for older papers in the forked build, install:
+
+```bash
+uv tool install '.[pdf]'
+```
+
+With the fork installed, `download_paper` stores each paper in a versioned bundle directory like:
+
+```text
+/your/storage/root/2603.23432v1/
+  paper.md
+  paper.pdf
+  source.tar.gz
+```
+
 > **PDF fallback (older papers):** Most arXiv papers have an HTML version which
 > the base install handles automatically. For older papers that only have a PDF,
-> the server needs the `[pdf]` extra (pymupdf4llm). Install it with:
+> the server needs the `[pdf]` extra (pymupdf4llm). Install it with the matching command for your install path:
 >
 > ```bash
-> uv tool install 'arxiv-mcp-server[pdf]'
+> uv tool install 'arxiv-mcp-server[pdf]'  # upstream PyPI package
+> uv tool install '.[pdf]'                 # this fork from source
 > ```
 You can verify it with:
 
@@ -118,7 +148,7 @@ For development:
 
 ```bash
 # Clone and set up development environment
-git clone https://github.com/blazickjp/arxiv-mcp-server.git
+git clone https://github.com/ziaahmed812/arxiv-mcp-server.git
 cd arxiv-mcp-server
 
 # Create and activate virtual environment
@@ -173,6 +203,8 @@ Add this configuration to your MCP client config file:
 }
 ```
 
+Choose any storage root you want with `--storage-path`. This fork keeps each downloaded paper inside its own canonical versioned folder under that root.
+
 For Development:
 
 ```json
@@ -191,6 +223,12 @@ For Development:
     }
 }
 ```
+
+You can also configure the storage root with `ARXIV_STORAGE_PATH`. Precedence is:
+
+1. `--storage-path`
+2. `ARXIV_STORAGE_PATH`
+3. `~/.arxiv-mcp-server/papers`
 
 ## 🔒 Security Note
 
@@ -297,7 +335,7 @@ Configure through environment variables:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `ARXIV_STORAGE_PATH` | Paper storage location | ~/.arxiv-mcp-server/papers |
+| `ARXIV_STORAGE_PATH` | Paper storage root when `--storage-path` is not provided | ~/.arxiv-mcp-server/papers |
 
 ## 🧪 Testing
 
@@ -364,9 +402,21 @@ result = await call_tool("check_alerts", {"topic": "\"multi-agent reinforcement 
 
 ---
 
+## Fork Improvements
+
+This public fork of `blazickjp/arxiv-mcp-server` adds:
+
+- bundle-backed paper storage using canonical versioned folder names such as `2603.23432v1/`
+- retained `paper.md`, `paper.pdf`, and `source.tar.gz` artifacts for every downloaded paper
+- working storage-root configuration through both `--storage-path` and `ARXIV_STORAGE_PATH`
+- bare-ID local reads that resolve to the highest downloaded version
+- legacy flat-file archiving into `older-files/` so existing storage roots can be upgraded safely
+
+---
+
 ## 📄 License
 
-Released under the MIT License. See the LICENSE file for details.
+Released under the Apache License 2.0. See the LICENSE file for details.
 
 ---
 

@@ -1,13 +1,16 @@
 """Read functionality for the arXiv MCP server."""
 
 import json
-from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 import mcp.types as types
 from mcp.types import ToolAnnotations
-from ..config import Settings
 
-settings = Settings()
+from ..paper_store import (
+    ensure_storage_layout_prepared,
+    get_bundle_paths,
+    resolve_local_paper_id,
+)
 
 _CONTENT_WARNING = (
     "[UNTRUSTED EXTERNAL CONTENT \u2014 arXiv paper. "
@@ -37,34 +40,27 @@ read_tool = types.Tool(
 )
 
 
-def list_papers() -> list[str]:
-    """List all stored paper IDs."""
-    return [p.stem for p in Path(settings.STORAGE_PATH).glob("*.md")]
-
-
 async def handle_read_paper(arguments: Dict[str, Any]) -> List[types.TextContent]:
     """Handle requests to read a paper's content."""
     try:
-        paper_ids = list_papers()
-        paper_id = arguments["paper_id"]
-        # Check if paper exists
-        if paper_id not in paper_ids:
+        ensure_storage_layout_prepared()
+
+        requested_paper_id = arguments["paper_id"]
+        paper_id = resolve_local_paper_id(requested_paper_id)
+        if paper_id is None:
             return [
                 types.TextContent(
                     type="text",
                     text=json.dumps(
                         {
                             "status": "error",
-                            "message": f"Paper {paper_id} not found in storage. You may need to download it first using download_paper.",
+                            "message": f"Paper {requested_paper_id} not found in storage. You may need to download it first using download_paper.",
                         }
                     ),
                 )
             ]
 
-        # Get paper content
-        content = Path(settings.STORAGE_PATH, f"{paper_id}.md").read_text(
-            encoding="utf-8"
-        )
+        content = get_bundle_paths(paper_id)["markdown"].read_text(encoding="utf-8")
 
         return [
             types.TextContent(
@@ -78,7 +74,6 @@ async def handle_read_paper(arguments: Dict[str, Any]) -> List[types.TextContent
                 ),
             )
         ]
-
     except Exception as e:
         return [
             types.TextContent(

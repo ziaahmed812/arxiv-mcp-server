@@ -28,17 +28,22 @@ class DummyModel:
         return vector
 
 
+class DummySentenceTransformer(DummyModel):
+    """Minimal SentenceTransformer stand-in for tests."""
+
+    def __init__(self, model_name, **kwargs):
+        self.model_name = model_name
+        self.kwargs = kwargs
+
+
 @pytest.fixture
-def semantic_test_env(monkeypatch, temp_storage_path):
+def semantic_test_env(monkeypatch, temp_storage_args):
     """Configure semantic search module to use a temporary index and dummy model."""
     monkeypatch.setattr(
-        semantic_module.settings,
-        "_get_storage_path_from_args",
-        lambda: Path(temp_storage_path),
+        semantic_module, "SentenceTransformer", DummySentenceTransformer
     )
-    monkeypatch.setattr(semantic_module, "SentenceTransformer", object)
-    monkeypatch.setattr(semantic_module, "_get_model", lambda: DummyModel())
     semantic_module._model = None
+    return temp_storage_args
 
 
 @pytest.mark.asyncio
@@ -96,12 +101,14 @@ async def test_semantic_search_by_paper_id(semantic_test_env):
 
 
 @pytest.mark.asyncio
-async def test_reindex_uses_local_markdown_ids(
-    monkeypatch, semantic_test_env, temp_storage_path
-):
-    """Reindex should walk local markdown files and attempt indexing each ID."""
-    Path(temp_storage_path, "2301.00001.md").write_text("paper", encoding="utf-8")
-    Path(temp_storage_path, "2301.00002.md").write_text("paper", encoding="utf-8")
+async def test_reindex_uses_local_markdown_ids(monkeypatch, semantic_test_env):
+    """Reindex should walk bundled markdown files and attempt indexing each ID."""
+    bundle_one = semantic_test_env / "2301.00001v1"
+    bundle_two = semantic_test_env / "2301.00002v2"
+    bundle_one.mkdir(parents=True, exist_ok=True)
+    bundle_two.mkdir(parents=True, exist_ok=True)
+    Path(bundle_one, "paper.md").write_text("paper", encoding="utf-8")
+    Path(bundle_two, "paper.md").write_text("paper", encoding="utf-8")
 
     indexed_ids = []
 
@@ -115,4 +122,25 @@ async def test_reindex_uses_local_markdown_ids(
 
     payload = json.loads(response[0].text)
     assert payload["status"] == "success"
-    assert set(indexed_ids) == {"2301.00001", "2301.00002"}
+    assert set(indexed_ids) == {"2301.00001v1", "2301.00002v2"}
+
+
+def test_get_model_uses_current_sentence_transformers_signature(
+    monkeypatch, semantic_test_env
+):
+    """Model loading should avoid passing removed constructor kwargs."""
+    captured = {}
+
+    class FakeSentenceTransformer:
+        def __init__(self, model_name, **kwargs):
+            captured["model_name"] = model_name
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(semantic_module, "SentenceTransformer", FakeSentenceTransformer)
+    semantic_module._model = None
+
+    model = semantic_module._get_model()
+
+    assert isinstance(model, FakeSentenceTransformer)
+    assert captured["model_name"] == semantic_module.EMBEDDING_MODEL_NAME
+    assert captured["kwargs"] == {}

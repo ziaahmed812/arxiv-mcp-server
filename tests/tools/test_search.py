@@ -14,14 +14,16 @@ from arxiv_mcp_server.tools.search import (
 @pytest.mark.asyncio
 async def test_basic_search(mock_client):
     """Test basic paper search functionality."""
-    with patch("arxiv.Client", return_value=mock_client):
+    with patch(
+        "arxiv_mcp_server.tools.search.get_arxiv_client", return_value=mock_client
+    ):
         result = await handle_search({"query": "test query", "max_results": 1})
 
         assert len(result) == 1
         content = json.loads(result[0].text)
         assert content["total_results"] == 1
         paper = content["papers"][0]
-        assert paper["id"] == "2103.12345"
+        assert paper["id"] == "2103.12345v1"
         assert paper["title"] == "Test Paper"
         assert "resource_uri" in paper
 
@@ -29,7 +31,9 @@ async def test_basic_search(mock_client):
 @pytest.mark.asyncio
 async def test_search_with_categories(mock_client):
     """Test paper search with category filtering."""
-    with patch("arxiv.Client", return_value=mock_client):
+    with patch(
+        "arxiv_mcp_server.tools.search.get_arxiv_client", return_value=mock_client
+    ):
         result = await handle_search(
             {"query": "test query", "categories": ["cs.AI", "cs.LG"], "max_results": 1}
         )
@@ -121,12 +125,12 @@ def test_parse_arxiv_atom_response():
     results = _parse_arxiv_atom_response(sample_xml)
     assert len(results) == 1
     paper = results[0]
-    assert paper["id"] == "2301.00001"
+    assert paper["id"] == "2301.00001v1"
     assert paper["title"] == "Test Paper Title"
     assert paper["abstract"] == "[EXTERNAL CONTENT] This is a test abstract."
     assert paper["authors"] == ["John Doe", "Jane Smith"]
     assert "cs.AI" in paper["categories"]
-    assert paper["resource_uri"] == "arxiv://2301.00001"
+    assert paper["resource_uri"] == "arxiv://2301.00001v1"
 
 
 @pytest.mark.asyncio
@@ -168,7 +172,9 @@ async def test_raw_arxiv_search_builds_correct_url():
 @pytest.mark.asyncio
 async def test_search_with_invalid_categories(mock_client):
     """Test search with invalid categories."""
-    with patch("arxiv.Client", return_value=mock_client):
+    with patch(
+        "arxiv_mcp_server.tools.search.get_arxiv_client", return_value=mock_client
+    ):
         result = await handle_search(
             {
                 "query": "test query",
@@ -183,7 +189,9 @@ async def test_search_with_invalid_categories(mock_client):
 @pytest.mark.asyncio
 async def test_search_empty_query(mock_client):
     """Test search with empty query but categories."""
-    with patch("arxiv.Client", return_value=mock_client):
+    with patch(
+        "arxiv_mcp_server.tools.search.get_arxiv_client", return_value=mock_client
+    ):
         result = await handle_search(
             {"query": "", "categories": ["cs.AI"], "max_results": 1}
         )
@@ -213,7 +221,9 @@ async def test_search_arxiv_error(mock_client):
 @pytest.mark.asyncio
 async def test_search_max_results_limiting(mock_client):
     """Test that max_results is properly limited."""
-    with patch("arxiv.Client", return_value=mock_client):
+    with patch(
+        "arxiv_mcp_server.tools.search.get_arxiv_client", return_value=mock_client
+    ):
         # Test that very large max_results gets capped
         result = await handle_search({"query": "test", "max_results": 1000})
 
@@ -225,7 +235,9 @@ async def test_search_max_results_limiting(mock_client):
 @pytest.mark.asyncio
 async def test_search_sort_by_relevance(mock_client):
     """Test search with relevance sorting (default)."""
-    with patch("arxiv.Client", return_value=mock_client):
+    with patch(
+        "arxiv_mcp_server.tools.search.get_arxiv_client", return_value=mock_client
+    ):
         result = await handle_search({"query": "test", "sort_by": "relevance"})
 
         content = json.loads(result[0].text)
@@ -235,7 +247,9 @@ async def test_search_sort_by_relevance(mock_client):
 @pytest.mark.asyncio
 async def test_search_sort_by_date(mock_client):
     """Test search with date sorting."""
-    with patch("arxiv.Client", return_value=mock_client):
+    with patch(
+        "arxiv_mcp_server.tools.search.get_arxiv_client", return_value=mock_client
+    ):
         result = await handle_search({"query": "test", "sort_by": "date"})
 
         content = json.loads(result[0].text)

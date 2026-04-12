@@ -1,5 +1,6 @@
 """Configuration settings for the arXiv MCP server."""
 
+import os
 import sys
 from importlib.metadata import version, PackageNotFoundError
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -48,6 +49,7 @@ class Settings(BaseSettings):
         """
         path = (
             self._get_storage_path_from_args()
+            or self._get_storage_path_from_env()
             or Path.home() / ".arxiv-mcp-server" / "papers"
         )
         path = path.resolve()
@@ -87,5 +89,20 @@ class Settings(BaseSettings):
         except OSError as e:
             # OSError: If the path contains invalid characters or is too long
             logger.warning(f"Invalid storage path: {e}")
+
+        return None
+
+    def _get_storage_path_from_env(self) -> Path | None:
+        """Extract storage path from ARXIV_STORAGE_PATH."""
+        raw_path = os.getenv("ARXIV_STORAGE_PATH")
+        if not raw_path:
+            return None
+
+        try:
+            return Path(raw_path).resolve()
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Invalid ARXIV_STORAGE_PATH format: {e}")
+        except OSError as e:
+            logger.warning(f"Invalid ARXIV_STORAGE_PATH value: {e}")
 
         return None
