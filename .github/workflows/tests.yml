@@ -10,17 +10,18 @@ on:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
-    
+
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -52,10 +53,8 @@ jobs:
       if: runner.os != 'Windows'
       run: |
         pytest --cov=./ --cov-report=xml -v
-        
+
     - name: Run tests on Windows
-      if: runner.os == 'Windows' 
+      if: runner.os == 'Windows'
       run: |
         pytest --cov=./ --cov-report=xml -v
-
-        

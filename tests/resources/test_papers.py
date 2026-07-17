@@ -38,7 +38,7 @@ async def test_list_resources_uses_bundle_markdown_path(
     resources = await manager.list_resources()
 
     assert len(resources) == 1
-    assert str(resources[0].uri) == f"file://{bundle['markdown']}"
+    assert str(resources[0].uri) == bundle["markdown"].as_uri()
     assert resources[0].name == "Test Paper"
 
 
