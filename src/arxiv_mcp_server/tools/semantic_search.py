@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import arxiv
 import mcp.types as types
+from mcp.types import ToolAnnotations
 
 from ..config import Settings
 from ..paper_store import list_active_paper_ids
@@ -50,6 +51,7 @@ class IndexedPaper:
 
 semantic_search_tool = types.Tool(
     name="semantic_search",
+    annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
     description=(
         "Semantic similarity search over papers you have already downloaded locally via download_paper. "
         "Supports free-text queries (e.g. 'attention mechanisms for long sequences') or finding papers "
@@ -76,12 +78,16 @@ semantic_search_tool = types.Tool(
                 "default": 10,
             },
         },
+        "additionalProperties": False,
     },
 )
 
 
 reindex_tool = types.Tool(
     name="reindex",
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=False, openWorldHint=False
+    ),
     description="Rebuild the local semantic index for downloaded papers.",
     inputSchema={
         "type": "object",
@@ -92,6 +98,7 @@ reindex_tool = types.Tool(
                 "default": True,
             }
         },
+        "additionalProperties": False,
     },
 )
 

@@ -27,6 +27,7 @@ list_tool = types.Tool(
         "type": "object",
         "properties": {},
         "required": [],
+        "additionalProperties": False,
     },
 )
 

@@ -87,9 +87,26 @@ To install ArXiv Server for Claude Desktop automatically via [Smithery](https://
 npx -y @smithery/cli install arxiv-mcp-server --client claude
 ```
 
+### Installing via Claude Desktop (.mcpb)
+
+The `.mcpb` bundle is the one-click install path for Claude Desktop on macOS. It bundles the server code and Python package dependencies, so users do not need `uv`, `pip`, or manual MCP JSON configuration. Python 3.11+ must still be available on the user's machine.
+
+1. Download the artifact matching your Mac from the [latest release](https://github.com/blazickjp/arxiv-mcp-server/releases/latest):
+   - Apple Silicon: `arxiv-mcp-server-darwin-arm64-<version>.mcpb`
+   - Intel: `arxiv-mcp-server-darwin-x86_64-<version>.mcpb`
+2. In Claude Desktop open **Settings → Extensions** (or drag-and-drop the file onto the Claude Desktop window).
+3. Click **Install** and, when prompted, set your preferred paper storage directory (defaults to `~/.arxiv-mcp-server/papers`).
+
+Claude Desktop launches the bundled server over stdio — no configuration file edits needed.
+
 ### Installing Manually
 
-> **Important — use `uv tool install`, not `uv pip install`**
+> **Important — use `uv tool install`, not npm/pnpm or `uv pip install`**
+>
+> This project publishes the supported server as a Python package on PyPI.
+> Do **not** install `arxiv-mcp-server` with `npm install`, `pnpm add`, or
+> `npx arxiv-mcp-server`: the npm package with this name is an unrelated
+> third-party package and has its own Python-detection wrapper.
 >
 > Running `uv pip install arxiv-mcp-server` installs the package into the
 > current virtual environment but does **not** place the `arxiv-mcp-server`
@@ -228,6 +245,29 @@ You can also configure the storage root with `ARXIV_STORAGE_PATH`. Precedence is
 2. `ARXIV_STORAGE_PATH`
 3. `~/.arxiv-mcp-server/papers`
 
+### HTTP Transport
+
+For server deployments where stdio is not practical, run the server with Streamable HTTP:
+
+```bash
+TRANSPORT=http HOST=127.0.0.1 PORT=8080 arxiv-mcp-server --storage-path /path/to/papers
+```
+
+Then configure an MCP client that supports Streamable HTTP:
+
+```json
+{
+    "mcpServers": {
+        "arxiv-mcp-server": {
+            "type": "http",
+            "url": "http://127.0.0.1:8080/mcp"
+        }
+    }
+}
+```
+
+The default HTTP bind host is `127.0.0.1`. Streamable HTTP enables MCP DNS rebinding protection by default and allows loopback hosts for the configured port. If exposing the server through a reverse proxy, keep it bound to localhost unless you have added authentication and network controls upstream; set `ALLOWED_HOSTS` and `ALLOWED_ORIGINS` to the external host/origin values your proxy forwards.
+
 ## 🔒 Security Note
 
 arXiv papers are user-generated, untrusted content. Paper text returned by this
@@ -268,11 +308,18 @@ result = await call_tool("search_papers", {
 Supported categories include `cs.AI`, `cs.LG`, `cs.CL`, `cs.CV`, `cs.NE`, `stat.ML`, `math.OC`, `quant-ph`, `eess.SP`, and more. See tool description for the full list.
 
 ### 2. Paper Download
-Download a paper by its arXiv ID. Tries HTML first, falls back to PDF. Stores the paper locally for `read_paper` and `semantic_search`.
+Download a paper by its arXiv ID. Tries HTML first, falls back to PDF, and stores a canonical versioned bundle containing `paper.md`, `paper.pdf`, and `source.tar.gz`. A successful response sets `stored_locally` to `true`, reports the exact bundle and artifact paths, and suggests `read_paper` as an optional next step. It also includes `content_length`, `returned_chars`, `next_start`, and `is_truncated` so clients can safely page through very large papers without mistaking client-side output caps for failed downloads.
 
 ```python
 result = await call_tool("download_paper", {
     "paper_id": "2401.12345"
+})
+
+# For very large papers, request bounded chunks:
+result = await call_tool("download_paper", {
+    "paper_id": "2401.12345",
+    "start": 0,
+    "max_chars": 50000
 })
 ```
 
@@ -286,11 +333,17 @@ result = await call_tool("list_papers", {})
 ```
 
 ### 4. Read Paper
-Read the full text of a locally downloaded paper in markdown. **Requires `download_paper` to be called first.**
+Read the full text of a locally downloaded paper in markdown. **Requires `download_paper` to be called first.** Use `start` and `max_chars` with the returned `next_start` value to page through large papers.
 
 ```python
 result = await call_tool("read_paper", {
     "paper_id": "2401.12345"
+})
+
+result = await call_tool("read_paper", {
+    "paper_id": "2401.12345",
+    "start": 50000,
+    "max_chars": 50000
 })
 ```
 
@@ -329,11 +382,19 @@ This prompt includes:
 
 ## ⚙️ Configuration
 
-Configure through environment variables:
+Configure through command-line options and environment variables:
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `ARXIV_STORAGE_PATH` | Paper storage root when `--storage-path` is not provided | ~/.arxiv-mcp-server/papers |
+| Setting | Purpose | Default |
+|---------|---------|---------|
+| `--storage-path` | Paper storage location | `~/.arxiv-mcp-server/papers` |
+| `ARXIV_STORAGE_PATH` | Paper storage root when `--storage-path` is not provided | `~/.arxiv-mcp-server/papers` |
+| `MAX_RESULTS` | Maximum search results | `50` |
+| `REQUEST_TIMEOUT` | API timeout in seconds | `60` |
+| `TRANSPORT` | Transport type: `stdio`, `http`, or `streamable-http` | `stdio` |
+| `HOST` | Host to bind to in HTTP mode | `127.0.0.1` |
+| `PORT` | Port to listen on in HTTP mode | `8000` |
+| `ALLOWED_HOSTS` | Comma-separated extra allowed Host header values for Streamable HTTP DNS rebinding protection | empty |
+| `ALLOWED_ORIGINS` | Comma-separated extra allowed Origin header values for Streamable HTTP DNS rebinding protection | empty |
 
 ## 🧪 Testing
 

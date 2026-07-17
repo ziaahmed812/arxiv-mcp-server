@@ -39,7 +39,9 @@ class PaperManager:
         """Download and store a paper bundle from arXiv."""
         del pdf_url  # Canonical metadata lookup happens inside download_paper.
 
-        response = await handle_download({"paper_id": paper_id})
+        response = await handle_download(
+            {"paper_id": paper_id, "start": 0, "max_chars": 1}
+        )
         payload = json.loads(response[0].text)
         if payload.get("status") == "success":
             return True

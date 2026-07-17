@@ -370,6 +370,7 @@ TIPS FOR FOUNDATIONAL RESEARCH:
             },
         },
         "required": ["query"],
+        "additionalProperties": False,
     },
 )
 
@@ -505,7 +506,7 @@ async def handle_search(arguments: Dict[str, Any]) -> List[types.TextContent]:
                 return [types.TextContent(type="text", text=f"Error: {str(e)}")]
 
         # For non-date queries, use the shared arxiv client (lazy, avoids eager import overhead)
-        client = get_arxiv_client()
+        client = get_arxiv_client(page_size=max_results)
 
         # Build query components
         query_parts = []

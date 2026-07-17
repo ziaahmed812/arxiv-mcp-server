@@ -5,13 +5,19 @@ Arxiv MCP Server
 This module implements an MCP server for interacting with arXiv.
 """
 
+import json
 import logging
+from typing import Any, Dict, List
+
 import mcp.types as types
-from typing import Dict, Any, List
-from mcp.server import Server
+import uvicorn
+from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
-from mcp.server import NotificationOptions
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from mcp.server.transport_security import TransportSecuritySettings
+from starlette.applications import Starlette
+from starlette.routing import Mount
 from .config import Settings
 from .tools import (
     handle_search,
@@ -73,50 +79,142 @@ async def list_tools() -> List[types.Tool]:
     ]
 
 
+def _tool_error_message(result: List[types.TextContent]) -> str | None:
+    """Return the error text if a tool result is an error payload."""
+    if len(result) != 1 or result[0].type != "text":
+        return None
+
+    text = result[0].text
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return text if text.startswith("Error:") else None
+
+    if isinstance(payload, dict) and payload.get("status") == "error":
+        return text
+    return None
+
+
 @server.call_tool()
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
     """Handle tool calls for arXiv research functionality."""
     logger.debug(f"Calling tool {name} with arguments {arguments}")
     try:
         if name == "search_papers":
-            return await handle_search(arguments)
+            result = await handle_search(arguments)
         elif name == "download_paper":
-            return await handle_download(arguments)
+            result = await handle_download(arguments)
         elif name == "list_papers":
-            return await handle_list_papers(arguments)
+            result = await handle_list_papers(arguments)
         elif name == "read_paper":
-            return await handle_read_paper(arguments)
+            result = await handle_read_paper(arguments)
         elif name == "get_abstract":
-            return await handle_get_abstract(arguments)
+            result = await handle_get_abstract(arguments)
         elif name == "semantic_search":
-            return await handle_semantic_search(arguments)
+            result = await handle_semantic_search(arguments)
         elif name == "reindex":
-            return await handle_reindex(arguments)
+            result = await handle_reindex(arguments)
         elif name == "citation_graph":
-            return await handle_citation_graph(arguments)
+            result = await handle_citation_graph(arguments)
         elif name == "watch_topic":
-            return await handle_watch_topic(arguments)
+            result = await handle_watch_topic(arguments)
         elif name == "check_alerts":
-            return await handle_check_alerts(arguments)
+            result = await handle_check_alerts(arguments)
         else:
-            return [types.TextContent(type="text", text=f"Error: Unknown tool {name}")]
+            result = [
+                types.TextContent(type="text", text=f"Error: Unknown tool {name}")
+            ]
+
+        if error_message := _tool_error_message(result):
+            raise RuntimeError(error_message)
+        return result
     except Exception as e:
         logger.error(f"Tool error: {str(e)}")
-        return [types.TextContent(type="text", text=f"Error: {str(e)}")]
+        raise
+
+
+def _initialization_options() -> InitializationOptions:
+    """Build shared MCP initialization options for every transport."""
+    return InitializationOptions(
+        server_name=settings.APP_NAME,
+        server_version=settings.APP_VERSION,
+        capabilities=server.get_capabilities(
+            notification_options=NotificationOptions(resources_changed=True),
+            experimental_capabilities={},
+        ),
+    )
+
+
+def _csv_settings(value: str) -> list[str]:
+    """Parse a comma-separated environment setting into non-empty strings."""
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _transport_security_settings() -> TransportSecuritySettings:
+    """Build explicit DNS rebinding protection for Streamable HTTP."""
+    host = settings.HOST
+    port = settings.PORT
+    loopback_hosts = {"127.0.0.1", "localhost", "[::1]"}
+    allowed_hosts = {
+        host,
+        f"{host}:{port}",
+        *(f"{h}:{port}" for h in loopback_hosts),
+        *loopback_hosts,
+    }
+    allowed_hosts.update(_csv_settings(settings.ALLOWED_HOSTS))
+
+    origin_hosts = {host, *loopback_hosts}
+    allowed_origins = {
+        f"http://{origin_host}:{port}" for origin_host in origin_hosts
+    } | {f"https://{origin_host}:{port}" for origin_host in origin_hosts}
+    allowed_origins.update(_csv_settings(settings.ALLOWED_ORIGINS))
+
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=sorted(allowed_hosts),
+        allowed_origins=sorted(allowed_origins),
+    )
+
+
+async def _run_stdio() -> None:
+    """Run the MCP server over stdio."""
+    async with stdio_server() as streams:
+        await server.run(streams[0], streams[1], _initialization_options())
+
+
+async def _run_streamable_http() -> None:
+    """Run the MCP server over Streamable HTTP."""
+    session_manager = StreamableHTTPSessionManager(
+        app=server,
+        event_store=None,
+        json_response=False,
+        security_settings=_transport_security_settings(),
+    )
+    starlette_app = Starlette(
+        routes=[Mount("/mcp", app=session_manager.handle_request)]
+    )
+    config = uvicorn.Config(
+        starlette_app,
+        host=settings.HOST,
+        port=settings.PORT,
+        log_level="info",
+    )
+    uvicorn_server = uvicorn.Server(config)
+    logger.info(
+        "Starting streamable HTTP transport on %s:%s", settings.HOST, settings.PORT
+    )
+    async with session_manager.run():
+        await uvicorn_server.serve()
 
 
 async def main():
     """Run the server async context."""
-    async with stdio_server() as streams:
-        await server.run(
-            streams[0],
-            streams[1],
-            InitializationOptions(
-                server_name=settings.APP_NAME,
-                server_version=settings.APP_VERSION,
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(resources_changed=True),
-                    experimental_capabilities={},
-                ),
-            ),
+    transport = settings.TRANSPORT.lower().replace("-", "_")
+    if transport in {"stdio", ""}:
+        await _run_stdio()
+    elif transport in {"http", "streamable_http"}:
+        await _run_streamable_http()
+    else:
+        raise ValueError(
+            f"Unsupported transport {settings.TRANSPORT!r}; expected 'stdio' or 'http'"
         )
