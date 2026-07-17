@@ -25,12 +25,16 @@ def get_arxiv_client(page_size: int = 100):
     left at the library default of 100, even a small max_results request causes
     an upstream API URL with max_results=100. Keep the client page size aligned
     with the requested result count so small searches make small API requests.
+
+    The server handles rate-limit errors itself and tells callers when to retry.
+    Disable the library's three hidden retries so a 429/503 is returned once,
+    instead of keeping an MCP request open while repeating a rejected query.
     """
     global _arxiv_client
     if _arxiv_client is None or getattr(_arxiv_client, "page_size", None) != page_size:
         import arxiv
 
-        _arxiv_client = arxiv.Client(page_size=page_size)
+        _arxiv_client = arxiv.Client(page_size=page_size, num_retries=0)
     return _arxiv_client
 
 

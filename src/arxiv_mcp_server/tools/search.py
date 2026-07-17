@@ -27,6 +27,17 @@ ARXIV_HEADERS = {
 }
 
 
+async def _wait_for_rate_limit_slot() -> None:
+    """Reserve the next request slot shared by arXiv API tools."""
+    global _last_request_time
+
+    async with _request_lock:
+        elapsed = time.monotonic() - _last_request_time
+        if elapsed < _MIN_REQUEST_INTERVAL:
+            await asyncio.sleep(_MIN_REQUEST_INTERVAL - elapsed)
+        _last_request_time = time.monotonic()
+
+
 async def _rate_limited_get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """Make a GET request respecting arXiv's rate limit policy.
 
@@ -34,16 +45,8 @@ async def _rate_limited_get(client: httpx.AsyncClient, url: str) -> httpx.Respon
     Fails fast on 429/503 — retrying while rate-limited only extends the ban.
     One retry on timeout only.
     """
-    global _last_request_time
-
-    # Enforce minimum interval before sending
-    async with _request_lock:
-        elapsed = time.monotonic() - _last_request_time
-        if elapsed < _MIN_REQUEST_INTERVAL:
-            await asyncio.sleep(_MIN_REQUEST_INTERVAL - elapsed)
-        _last_request_time = time.monotonic()
-
     for attempt in range(2):  # one retry on timeout only
+        await _wait_for_rate_limit_slot()
         try:
             response = await client.get(url, headers=ARXIV_HEADERS)
             if response.status_code in (429, 503):
@@ -550,10 +553,8 @@ async def handle_search(arguments: Dict[str, Any]) -> List[types.TextContent]:
             sort_by=sort_criterion,
         )
 
-        # Respect rate limit before request
-        elapsed = time.monotonic() - _last_request_time
-        if elapsed < _MIN_REQUEST_INTERVAL:
-            await asyncio.sleep(_MIN_REQUEST_INTERVAL - elapsed)
+        # Reserve a shared request slot before the synchronous arxiv client call.
+        await _wait_for_rate_limit_slot()
 
         # Process results — fail fast on rate limit, don't hammer the API
         results = []

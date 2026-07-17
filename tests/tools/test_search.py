@@ -11,6 +11,14 @@ from arxiv_mcp_server.tools.search import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_search_rate_limit(monkeypatch):
+    """Keep independent search tests from inheriting production pacing state."""
+    from arxiv_mcp_server.tools import search as search_module
+
+    monkeypatch.setattr(search_module, "_last_request_time", 0.0)
+
+
 @pytest.mark.asyncio
 async def test_basic_search(mock_client):
     """Test basic paper search functionality."""
@@ -233,10 +241,10 @@ async def test_search_max_results_limiting(mock_client):
 
 
 @pytest.mark.asyncio
-async def test_search_client_page_size_matches_requested_max_results(
+async def test_search_client_uses_requested_page_size_without_retries(
     mock_client, monkeypatch
 ):
-    """Use the requested max_results as the arxiv client page size."""
+    """Use the requested result count and do not retry rejected requests."""
     from arxiv_mcp_server import config
 
     monkeypatch.setattr(config, "_arxiv_client", None)
@@ -244,7 +252,25 @@ async def test_search_client_page_size_matches_requested_max_results(
     with patch("arxiv.Client", return_value=mock_client) as mock_client_class:
         await handle_search({"query": "test", "max_results": 5})
 
-    mock_client_class.assert_called_once_with(page_size=5)
+    mock_client_class.assert_called_once_with(page_size=5, num_retries=0)
+
+
+@pytest.mark.asyncio
+async def test_search_reserves_rate_limit_slot(mock_client):
+    """Ordinary searches should participate in the shared API rate limiter."""
+    with (
+        patch(
+            "arxiv_mcp_server.tools.search.get_arxiv_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "arxiv_mcp_server.tools.search._wait_for_rate_limit_slot",
+            new_callable=AsyncMock,
+        ) as wait_for_slot,
+    ):
+        await handle_search({"query": "test", "max_results": 1})
+
+    wait_for_slot.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio
